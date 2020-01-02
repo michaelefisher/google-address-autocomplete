@@ -64,7 +64,7 @@ export default class AddressAutocomplete {
     // When the document is ready, we need to fire everything off.
     document.addEventListener('readystatechange', () => {
       this.initializeAutocomplete();
-      this.element.addEventListener('focus', this.getUsersLocation);
+      this.element.addEventListener('focus', this.getUsersLocation(this.options.bounds));
     });
   }
 
@@ -76,8 +76,9 @@ export default class AddressAutocomplete {
   initializeAutocomplete() {
     this.autocomplete = new google.maps.places.Autocomplete(
       this.element,
-      this.options
+      this.options,
     );
+    this.autocomplete.setFields(['address_components', 'formatted_address', 'geometry.location']);
     this.autocomplete.addListener('place_changed', this.extractAddress);
   }
 
@@ -90,7 +91,9 @@ export default class AddressAutocomplete {
     const componentForm = {
       street_number: 'short_name',
       route: 'long_name',
+      neighborhood: 'long_name',
       locality: 'long_name',
+      sublocality_level_1: 'long_name',
       administrative_area_level_1: 'short_name',
       country: 'long_name',
       postal_code: 'short_name',
@@ -105,6 +108,8 @@ export default class AddressAutocomplete {
     const addressObject = {
       streetNumber: '',
       streetName: '',
+      neighborhood: '',
+      sublocality_level_1: '',
       cityName: '',
       stateAbbr: '',
       zipCode: '',
@@ -114,13 +119,20 @@ export default class AddressAutocomplete {
     // Need to loop over the results and create a friendly object
     for (let i = 0; i < address_components.length; i++) {
       const addressType = address_components[i].types[0];
-      if (componentForm[addressType]) {
+      if (componentForm[addressType] != undefined &&
+          componentForm[addressType]) {
         switch (addressType) {
           case 'street_number':
             addressObject.streetNumber = address_components[i].long_name;
             break;
           case 'route':
             addressObject.streetName = address_components[i].long_name;
+            break;
+          case 'neighborhood':
+            addressObject.neighborhood = address_components[i].long_name;
+            break;
+          case 'sublocality_level_1':
+            addressObject.sublocality_level_1 = address_components[i].long_name;
             break;
           case 'locality':
             addressObject.cityName = address_components[i].long_name;
@@ -155,20 +167,22 @@ export default class AddressAutocomplete {
    *
    * @memberof AddressAutocomplete
    */
-  getUsersLocation() {
+  getUsersLocation(bounds) {
     // Using feature detection to make sure the browser supports geolocation
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(position => {
-        const geolocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        const circle = new google.maps.Circle({
-          center: geolocation,
-          radius: position.coords.accuracy,
+    if (!bounds) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+          const geolocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          const circle = new google.maps.Circle({
+            center: geolocation,
+            radius: position.coords.accuracy,
+          });
+          this.autocomplete.setBounds(circle.getBounds());
         });
-        this.autocomplete.setBounds(circle.getBounds());
-      });
+      }
     }
   }
 }
